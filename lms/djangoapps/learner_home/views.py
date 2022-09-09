@@ -1,9 +1,12 @@
 """
 Views for the learner dashboard.
 """
+import logging
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from edx_django_utils import monitoring as monitoring_utils
 from opaque_keys.edx.keys import CourseKey
+from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.response import Response
 from rest_framework.generics import RetrieveAPIView
 
@@ -32,7 +35,11 @@ from openedx.core.djangoapps.site_configuration import helpers as configuration_
 from openedx.core.djangoapps.programs.utils import ProgramProgressMeter
 from openedx.features.enterprise_support.api import (
     enterprise_customer_from_session_or_learner_data,
+    get_enterprise_learner_data_from_db
 )
+
+logger = logging.getLogger(__name__)
+User = get_user_model()
 
 
 def get_platform_settings():
@@ -164,6 +171,18 @@ def get_email_settings_info(user, course_enrollments):
     return show_email_settings_for, course_optouts
 
 
+def get_enterprise_customer(user, request, is_masquerading):
+    """
+    If we are not masquerading, try to load the enterprise learner from session data, falling back to the db.
+    If we are masquerading, don't read or write to/from session data, go directly to db.
+    """
+    if is_masquerading:
+        learner_data = get_enterprise_learner_data_from_db(user)
+        return learner_data[0]['enterprise_customer'] if learner_data else None
+    else:
+        return enterprise_customer_from_session_or_learner_data(request)
+
+
 def get_ecommerce_payment_page(user):
     """Determine the ecommerce payment page URL if enabled for this user"""
     ecommerce_service = EcommerceService()
@@ -269,13 +288,29 @@ class InitializeView(RetrieveAPIView):  # pylint: disable=unused-argument
     """List of courses a user is enrolled in or entitled to"""
 
     def get(self, request, *args, **kwargs):  # pylint: disable=unused-argument
-        # Get user, determine if user needs to confirm email account
-        user = request.user
-        site = request.site
+        if request.GET.get('user'):
+            if not request.user.is_staff:
+                logger.info(f"[Learner Home] {request.user.username} attempted to masquerade but is not staff")
+                raise PermissionDenied()
+            try:
+                masquerade_username = request.GET.get('user')
+                masquerade_user = User.objects.get(username=masquerade_username)
+            except User.DoesNotExist:
+                raise NotFound()  # pylint: disable=raise-missing-from
+            logger.info(f"[Learner Home] {request.user.username} masquerades as {masquerade_username}")
+            return self._initialize(masquerade_user, True)
+        else:
+            return self._initialize(request.user, False)
+
+    def _initialize(self, user, is_masquerade):
+        """
+        Load information required for displaying the learner home
+        """
+        # Determine if user needs to confirm email account
         email_confirmation = get_user_account_confirmation_info(user)
 
         # Gather info for enterprise dashboard
-        enterprise_customer = enterprise_customer_from_session_or_learner_data(request)
+        enterprise_customer = get_enterprise_customer(user, self.request, is_masquerade)
 
         # Get the org whitelist or the org blacklist for the current site
         site_org_whitelist, site_org_blacklist = get_org_black_and_whitelist_for_site()
@@ -308,7 +343,7 @@ class InitializeView(RetrieveAPIView):  # pylint: disable=unused-argument
         course_access_checks = check_course_access(user, course_enrollments)
 
         # Get programs related to the courses the user is enrolled in
-        programs = get_course_programs(user, course_enrollments, site)
+        programs = get_course_programs(user, course_enrollments, self.request.site)
 
         # e-commerce info
         ecommerce_payment_page = get_ecommerce_payment_page(user)
