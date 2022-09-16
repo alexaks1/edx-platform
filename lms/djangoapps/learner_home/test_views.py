@@ -623,7 +623,12 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         super().setUpClass()
         cls.staff_username = "sudo_alan"
         cls.user_2_username = 'Alan II'
-        cls.staff_user = UserFactory(username=cls.staff_username, password=cls.password, is_staff=True)
+        cls.staff_user = UserFactory(
+            username=cls.staff_username,
+            email=cls.staff_username
+            password=cls.password,
+            is_staff=True
+        )
         cls.user_2 = UserFactory.create(username=cls.user_2_username, password=cls.password, is_staff=False)
         cls.user_1_enrollment = create_test_enrollment(cls.user)
         cls.user_2_enrollment = create_test_enrollment(cls.user_2)
@@ -637,15 +642,10 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         """ Get the first course id from a dashboard init response """
         return response.json()["courses"][0]["courseRun"]["courseId"]
 
-    def get(self, user=None, username=None):
+    def get(self, user):
         """ Make a get request to the dashboard init view """
-        params = {}
         if user:
-            params["user"] = user.username
-        elif username:
-            params["user"] = username
-
-        if params:
+            params = {"user": user}
             url_params = "/?" + urlencode(params)
         else:
             url_params = ""
@@ -662,11 +662,11 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         assert self.get_first_course_id(response) == str(self.user_1_enrollment.course_id)
 
         # If I try to masquerade as another user I get a 403
-        response = self.get(self.user_2)
+        response = self.get(self.user_2.username)
         assert response.status_code == 403
 
         # Even if I try to masquerade as myself I get a 403
-        response = self.get(self.user)
+        response = self.get(self.user.username)
         assert response.status_code == 403
 
     def test_staff_user(self):
@@ -679,11 +679,11 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         assert self.get_first_course_id(response) == str(self.staff_user_enrollment.course_id)
 
         # I can also get other users' dashboard info by masquerading
-        response = self.get(self.user)
+        response = self.get(self.user.username)
         assert response.status_code == 200
         assert self.get_first_course_id(response) == str(self.user_1_enrollment.course_id)
 
-        response = self.get(self.user_2)
+        response = self.get(self.user_2.username)
         assert response.status_code == 200
         assert self.get_first_course_id(response) == str(self.user_2_enrollment.course_id)
 
@@ -692,7 +692,7 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         self.log_in(self.staff_user)
 
         # If I request to masquerade a nonexistant user I get a 404
-        response = self.get(username=str(uuid4()))
+        response = self.get(str(uuid4()))
         assert response.status_code == 404
 
     def test_nonexistant_user__student(self):
@@ -700,5 +700,34 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         self.log_in(self.user)
 
         # If I request to masquerade a nonexistant user I get a 403
-        response = self.get(username=str(uuid4()))
+        response = self.get(str(uuid4()))
         assert response.status_code == 403
+        
+    def test_get_user_by_email(self):
+        # If log in as a staff user
+        self.log_in(self.staff_user)
+        
+        # I can masquerade as a user by providing their email
+        response = self.get(self.user.email)
+        assert response.status_code == 200
+        assert self.get_first_course_id(response) == str(self.user_1_enrollment.course_id)
+
+        response = self.get(self.user_2.email)
+        assert response.status_code == 200
+        assert self.get_first_course_id(response) == str(self.user_2_enrollment.course_id)
+    
+    def test_user_email_collision(self):
+        # If we have a user whose username is the same as another user's email
+        user_3 = UserFactory(
+            username=self.user_2.email
+        )
+        assert user_3.username == user_2.email
+        user_3_enrollment = create_test_enrollment(user_3)
+        
+        # when a staff user masquerades as that value
+        response = self.get(user_2.email)
+        
+        # username has priority in the lookup
+        assert response.status_code == 200
+        assert self.get_first_course_id(response) == str(user_3_enrollment.course_id)
+
