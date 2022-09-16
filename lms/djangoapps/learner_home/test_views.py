@@ -623,12 +623,7 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         super().setUpClass()
         cls.staff_username = "sudo_alan"
         cls.user_2_username = 'Alan II'
-        cls.staff_user = UserFactory(
-            username=cls.staff_username,
-            email=cls.staff_username
-            password=cls.password,
-            is_staff=True
-        )
+        cls.staff_user = UserFactory(username=cls.staff_username, password=cls.password, is_staff=True)
         cls.user_2 = UserFactory.create(username=cls.user_2_username, password=cls.password, is_staff=False)
         cls.user_1_enrollment = create_test_enrollment(cls.user)
         cls.user_2_enrollment = create_test_enrollment(cls.user_2)
