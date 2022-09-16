@@ -4,6 +4,7 @@ Views for the learner dashboard.
 import logging
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import MultipleObjectsReturned
 from edx_django_utils import monitoring as monitoring_utils
 from opaque_keys.edx.keys import CourseKey
 from rest_framework.exceptions import PermissionDenied, NotFound
@@ -13,6 +14,7 @@ from rest_framework.generics import RetrieveAPIView
 from common.djangoapps.course_modes.models import CourseMode
 from common.djangoapps.edxmako.shortcuts import marketing_link
 from common.djangoapps.student.helpers import cert_info, get_resume_urls_for_enrollments
+from common.djangoapps.student.models import get_user_by_username_or_email
 from common.djangoapps.student.views.dashboard import (
     complete_course_mode_info,
     get_course_enrollments,
@@ -292,12 +294,25 @@ class InitializeView(RetrieveAPIView):  # pylint: disable=unused-argument
             if not request.user.is_staff:
                 logger.info(f"[Learner Home] {request.user.username} attempted to masquerade but is not staff")
                 raise PermissionDenied()
+
+            masquerade_identifier = request.GET.get('user')
             try:
-                masquerade_username = request.GET.get('user')
-                masquerade_user = User.objects.get(username=masquerade_username)
+                masquerade_user = get_user_by_username_or_email(masquerade_identifier)
             except User.DoesNotExist:
                 raise NotFound()  # pylint: disable=raise-missing-from
-            logger.info(f"[Learner Home] {request.user.username} masquerades as {masquerade_username}")
+            except MultipleObjectsReturned:
+                msg = (
+                    f"[Learner Home] {masquerade_identifier} could refer to multiple learners. "
+                    " Defaulting to username."
+                )
+                logger.info(msg)
+                masquerade_user = User.objects.get(username=masquerade_identifier)
+
+            success_msg = (
+                f"[Learner Home] {request.user.username} masquerades as "
+                f"{masquerade_user.username} - {masquerade_user.email}"
+            )
+            logger.info(success_msg)
             return self._initialize(masquerade_user, True)
         else:
             return self._initialize(request.user, False)
