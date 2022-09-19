@@ -398,24 +398,29 @@ class TestGetSuggestedCourses(SharedModuleStoreTestCase):
 
 @ddt.ddt
 class TestGetEnterpriseCustomer(TestCase):
-    """ Test for get_enterprise_customer """
+    """Test for get_enterprise_customer"""
 
     @ddt.data(True, False)
-    @patch('lms.djangoapps.learner_home.views.get_enterprise_learner_data_from_db')
-    @patch('lms.djangoapps.learner_home.views.enterprise_customer_from_session_or_learner_data')
-    def test_get_enterprise_customer(self, is_masquerading, mock_get_from_session, mock_get_from_db):
-        """ Don't load the user from session if we're masquerading, load directly from db """
+    @patch("lms.djangoapps.learner_home.views.get_enterprise_learner_data_from_db")
+    @patch(
+        "lms.djangoapps.learner_home.views.enterprise_customer_from_session_or_learner_data"
+    )
+    def test_get_enterprise_customer(
+        self, is_masquerading, mock_get_from_session, mock_get_from_db
+    ):
+        """Don't load the user from session if we're masquerading, load directly from db"""
         user, request = Mock(), Mock()
         result = get_enterprise_customer(user, request, is_masquerading)
         if is_masquerading:
             assert not mock_get_from_session.called
-            assert result is mock_get_from_db.return_value[0]['enterprise_customer']
+            assert result is mock_get_from_db.return_value[0]["enterprise_customer"]
         else:
             assert result is mock_get_from_session.return_value
 
 
 class BaseTestDashboardView(SharedModuleStoreTestCase, APITestCase):
-    """ Base class for test setup """
+    """Base class for test setup"""
+
     MODULESTORE = TEST_DATA_SPLIT_MODULESTORE
 
     @classmethod
@@ -433,7 +438,9 @@ class BaseTestDashboardView(SharedModuleStoreTestCase, APITestCase):
         cls.username = "alan"
         cls.password = "enigma"
 
-        cls.user = UserFactory(username=cls.username, password=cls.password, is_staff=False)
+        cls.user = UserFactory(
+            username=cls.username, password=cls.password, is_staff=False
+        )
         cls.site = SiteFactory()
 
 
@@ -617,28 +624,33 @@ class TestDashboardView(BaseTestDashboardView):
 
 
 class TestDashboardMasquerade(BaseTestDashboardView):
-    """ Tests for the masquerade function for the learner home """
+    """Tests for the masquerade function for the learner home"""
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.staff_username = "sudo_alan"
-        cls.user_2_username = 'Alan II'
-        cls.staff_user = UserFactory(username=cls.staff_username, password=cls.password, is_staff=True)
-        cls.user_2 = UserFactory.create(username=cls.user_2_username, password=cls.password, is_staff=False)
+        cls.user_2_username = "Alan II"
+        cls.staff_user = UserFactory(
+            username=cls.staff_username, password=cls.password, is_staff=True
+        )
+        cls.user_2 = UserFactory.create(
+            username=cls.user_2_username, password=cls.password, is_staff=False
+        )
         cls.user_1_enrollment = create_test_enrollment(cls.user)
         cls.user_2_enrollment = create_test_enrollment(cls.user_2)
         cls.staff_user_enrollment = create_test_enrollment(cls.staff_user)
 
     def log_in(self, user):
-        """ Log in as the given user """
+        """Log in as the given user"""
         self.client.login(username=user.username, password=self.password)
 
     def get_first_course_id(self, response):
-        """ Get the first course id from a dashboard init response """
+        """Get the first course id from a dashboard init response"""
         return response.json()["courses"][0]["courseRun"]["courseId"]
 
     def get(self, user):
-        """ Make a get request to the dashboard init view """
+        """Make a get request to the dashboard init view"""
         if user:
             params = {"user": user}
             url_params = "/?" + urlencode(params)
@@ -654,7 +666,9 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         # I get my own dashboard info while not masquerading
         response = self.get()
         assert response.status_code == 200
-        assert self.get_first_course_id(response) == str(self.user_1_enrollment.course_id)
+        assert self.get_first_course_id(response) == str(
+            self.user_1_enrollment.course_id
+        )
 
         # If I try to masquerade as another user I get a 403
         response = self.get(self.user_2.username)
@@ -671,16 +685,22 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         # I get my own dashboard info while not masquerading
         response = self.get()
         assert response.status_code == 200
-        assert self.get_first_course_id(response) == str(self.staff_user_enrollment.course_id)
+        assert self.get_first_course_id(response) == str(
+            self.staff_user_enrollment.course_id
+        )
 
         # I can also get other users' dashboard info by masquerading
         response = self.get(self.user.username)
         assert response.status_code == 200
-        assert self.get_first_course_id(response) == str(self.user_1_enrollment.course_id)
+        assert self.get_first_course_id(response) == str(
+            self.user_1_enrollment.course_id
+        )
 
         response = self.get(self.user_2.username)
         assert response.status_code == 200
-        assert self.get_first_course_id(response) == str(self.user_2_enrollment.course_id)
+        assert self.get_first_course_id(response) == str(
+            self.user_2_enrollment.course_id
+        )
 
     def test_nonexistant_user__staff(self):
         # If I log in as course staff
@@ -697,32 +717,33 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         # If I request to masquerade a nonexistant user I get a 403
         response = self.get(str(uuid4()))
         assert response.status_code == 403
-        
+
     def test_get_user_by_email(self):
         # If log in as a staff user
         self.log_in(self.staff_user)
-        
+
         # I can masquerade as a user by providing their email
         response = self.get(self.user.email)
         assert response.status_code == 200
-        assert self.get_first_course_id(response) == str(self.user_1_enrollment.course_id)
+        assert self.get_first_course_id(response) == str(
+            self.user_1_enrollment.course_id
+        )
 
         response = self.get(self.user_2.email)
         assert response.status_code == 200
-        assert self.get_first_course_id(response) == str(self.user_2_enrollment.course_id)
-    
+        assert self.get_first_course_id(response) == str(
+            self.user_2_enrollment.course_id
+        )
+
     def test_user_email_collision(self):
         # If we have a user whose username is the same as another user's email
-        user_3 = UserFactory(
-            username=self.user_2.email
-        )
+        user_3 = UserFactory(username=self.user_2.email)
         assert user_3.username == user_2.email
         user_3_enrollment = create_test_enrollment(user_3)
-        
+
         # when a staff user masquerades as that value
         response = self.get(user_2.email)
-        
+
         # username has priority in the lookup
         assert response.status_code == 200
         assert self.get_first_course_id(response) == str(user_3_enrollment.course_id)
-

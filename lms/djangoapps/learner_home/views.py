@@ -37,7 +37,7 @@ from openedx.core.djangoapps.site_configuration import helpers as configuration_
 from openedx.core.djangoapps.programs.utils import ProgramProgressMeter
 from openedx.features.enterprise_support.api import (
     enterprise_customer_from_session_or_learner_data,
-    get_enterprise_learner_data_from_db
+    get_enterprise_learner_data_from_db,
 )
 
 logger = logging.getLogger(__name__)
@@ -180,7 +180,7 @@ def get_enterprise_customer(user, request, is_masquerading):
     """
     if is_masquerading:
         learner_data = get_enterprise_learner_data_from_db(user)
-        return learner_data[0]['enterprise_customer'] if learner_data else None
+        return learner_data[0]["enterprise_customer"] if learner_data else None
     else:
         return enterprise_customer_from_session_or_learner_data(request)
 
@@ -269,7 +269,9 @@ def get_course_programs(user, course_enrollments, site):
         }
     }
     """
-    meter = ProgramProgressMeter(site, user, enrollments=course_enrollments, include_course_entitlements=True)
+    meter = ProgramProgressMeter(
+        site, user, enrollments=course_enrollments, include_course_entitlements=True
+    )
     return meter.invert_programs()
 
 
@@ -290,12 +292,14 @@ class InitializeView(RetrieveAPIView):  # pylint: disable=unused-argument
     """List of courses a user is enrolled in or entitled to"""
 
     def get(self, request, *args, **kwargs):  # pylint: disable=unused-argument
-        if request.GET.get('user'):
+        if request.GET.get("user"):
             if not request.user.is_staff:
-                logger.info(f"[Learner Home] {request.user.username} attempted to masquerade but is not staff")
+                logger.info(
+                    f"[Learner Home] {request.user.username} attempted to masquerade but is not staff"
+                )
                 raise PermissionDenied()
 
-            masquerade_identifier = request.GET.get('user')
+            masquerade_identifier = request.GET.get("user")
             try:
                 masquerade_user = get_user_by_username_or_email(masquerade_identifier)
             except User.DoesNotExist:
