@@ -649,7 +649,7 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         """Get the first course id from a dashboard init response"""
         return response.json()["courses"][0]["courseRun"]["courseId"]
 
-    def get(self, user):
+    def get(self, user=None):
         """Make a get request to the dashboard init view"""
         if user:
             params = {"user": user}
@@ -736,13 +736,16 @@ class TestDashboardMasquerade(BaseTestDashboardView):
         )
 
     def test_user_email_collision(self):
-        # If we have a user whose username is the same as another user's email
+        # If log in as a staff user
+        self.log_in(self.staff_user)
+
+        # and we have a user whose username is the same as another user's email
         user_3 = UserFactory(username=self.user_2.email)
-        assert user_3.username == user_2.email
+        assert user_3.username == self.user_2.email
         user_3_enrollment = create_test_enrollment(user_3)
 
         # when a staff user masquerades as that value
-        response = self.get(user_2.email)
+        response = self.get(user_3.username)
 
         # username has priority in the lookup
         assert response.status_code == 200
