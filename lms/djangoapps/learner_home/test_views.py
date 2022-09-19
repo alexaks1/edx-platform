@@ -269,13 +269,13 @@ class TestGetEntitlements(SharedModuleStoreTestCase):
         with self.mock_get_filtered_course_entitlements([], {}, {}):
             (
                 fulfilled_entitlements_by_course_key,
-                unfulfulled_entitlements,
+                unfulfilled_entitlements,
                 course_entitlement_available_sessions,
                 unfulfilled_entitlement_pseudo_sessions,
             ) = get_entitlements(self.user, None, None)
 
         assert not fulfilled_entitlements_by_course_key
-        assert not unfulfulled_entitlements
+        assert not unfulfilled_entitlements
         assert not course_entitlement_available_sessions
         assert not unfulfilled_entitlement_pseudo_sessions
 
@@ -702,19 +702,19 @@ class TestDashboardMasquerade(BaseTestDashboardView):
             self.user_2_enrollment.course_id
         )
 
-    def test_nonexistant_user__staff(self):
+    def test_nonexistent_user__staff(self):
         # If I log in as course staff
         self.log_in(self.staff_user)
 
-        # If I request to masquerade a nonexistant user I get a 404
+        # If I request to masquerade a nonexistent user I get a 404
         response = self.get(str(uuid4()))
         assert response.status_code == 404
 
-    def test_nonexistant_user__student(self):
+    def test_nonexistent_user__student(self):
         # If I log in as a non-staff user
         self.log_in(self.user)
 
-        # If I request to masquerade a nonexistant user I get a 403
+        # If I request to masquerade a nonexistent user I get a 403
         response = self.get(str(uuid4()))
         assert response.status_code == 403
 
